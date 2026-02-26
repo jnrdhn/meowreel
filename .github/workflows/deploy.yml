@@ -1,0 +1,67 @@
+# .github/workflows/deploy.yml
+
+name: Deploy MeowReel to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main   # Runs every time you push to main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only allow one deployment at a time
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out your code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Set up Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # 3. Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # 4. Download FFmpeg core files into /public
+      #    (they're too large to store in git)
+      - name: Download FFmpeg WASM core files
+        run: |
+          curl -L "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js" \
+            -o public/ffmpeg-core.js
+          curl -L "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm" \
+            -o public/ffmpeg-core.wasm
+          echo "FFmpeg core files downloaded:"
+          ls -lh public/ffmpeg-core.*
+
+      # 5. Build — inject the API key from GitHub Secrets here
+      - name: Build
+        run: npm run build
+        env:
+          VITE_GIPHY_API_KEY: ${{ secrets.VITE_GIPHY_API_KEY }}
+          NODE_ENV: production
+
+      # 6. Upload the built /dist folder as a Pages artifact
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      # 7. Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
